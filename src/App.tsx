@@ -129,35 +129,74 @@ const playRawPCM = async (base64Audio: string) => {
   source.start();
 };
 
+let isGeminiQuotaExceeded = false;
+
+const preloadAllAudio = async (items: Item[]) => {
+  if (!process.env.GEMINI_API_KEY) return;
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+  for (const item of items) {
+    if (isGeminiQuotaExceeded) break;
+    if (!audioCache.has(item.name)) {
+      try {
+        const response = await ai.models.generateContent({
+          model: "gemini-3.1-flash-tts-preview",
+          contents: [{ parts: [{ text: item.name }] }],
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+          },
+        });
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64Audio) audioCache.set(item.name, base64Audio);
+        
+        // 너무 많은 요청을 한꺼번에 보내서 API 사용량 초과(Quota Error)가 뜨는 것을 막기 위해 1.5초 대기
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (e: any) {
+        console.warn("Preload failed for", item.name, e);
+        if (e.message && e.message.toLowerCase().includes('quota')) {
+          isGeminiQuotaExceeded = true;
+        }
+        break;
+      }
+    }
+  }
+};
+
 const speak = async (text: string) => {
   try {
     if (audioCache.has(text)) {
       playRawPCM(audioCache.get(text)!);
       return;
     }
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-tts-preview",
-      contents: [{ parts: [{ text }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+    
+    if (!isGeminiQuotaExceeded) {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
+      const response = await ai.models.generateContent({
+        model: "gemini-3.1-flash-tts-preview",
+        contents: [{ parts: [{ text }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+          },
         },
-      },
-    });
+      });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (base64Audio) {
-      audioCache.set(text, base64Audio);
-      playRawPCM(base64Audio);
-      return;
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        audioCache.set(text, base64Audio);
+        playRawPCM(base64Audio);
+        return;
+      }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.warn("Gemini TTS fallback:", error);
+    if (error.message && error.message.toLowerCase().includes('quota')) {
+      isGeminiQuotaExceeded = true;
+    }
   }
 
-  // Fallback to Browser TTS
+  // Fallback to Browser TTS (only if Gemini completely fails, we try not to hit this now since we preload)
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -187,13 +226,15 @@ export default function App() {
         window.speechSynthesis.getVoices();
       };
     }
+    // 게임 시작 시 백그라운드에서 모든 단어의 AI 목소리를 미리 생성해 둡니다.
+    preloadAllAudio(ALL_ITEMS);
   }, []);
 
   useEffect(() => {
     if (gameState === 'PLAYING' && questions[currentIndex]) {
       const timer = setTimeout(() => {
         speak(questions[currentIndex].target.name);
-      }, 300);
+      }, 500); // 0.5초 뒤에 바로 읽어주기 (다음 문제 넘어간 직후)
       return () => clearTimeout(timer);
     }
   }, [currentIndex, gameState, questions]);
