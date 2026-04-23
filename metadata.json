@@ -1,0 +1,5 @@
+{
+  "name": "그림말 퀴즈",
+  "description": "단어를 듣고 알맞은 그림을 찾는 퀴즈 프로그램",
+  "requestFramePermissions": []
+}
