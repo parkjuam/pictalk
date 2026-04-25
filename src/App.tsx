@@ -2,28 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Volume2, Play, RotateCcw } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { GoogleGenAI, Modality } from '@google/genai';
 
 type Item = {
   id: string;
   name: string;
   emojiUrl: string;
   customUrl?: string;
+  audioUrl?: string;
 };
 
 const ALL_ITEMS: Item[] = [
-  { id: '1', name: '과자', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f36a/512.webp', customUrl: '/1.png' },
-  { id: '2', name: '마이쮸', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f36c/512.webp', customUrl: '/2.png' },
-  { id: '3', name: '물', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f4a7/512.webp', customUrl: '/3.png' },
-  { id: '4', name: '급식', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f371/512.webp', customUrl: '/4.png' },
-  { id: '5', name: '베이글', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f96f/512.webp', customUrl: '/5.png' },
-  { id: '6', name: '아이스크림', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f366/512.webp', customUrl: '/6.png' },
-  { id: '7', name: '요거트', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f368/512.webp', customUrl: '/7.png' },
-  { id: '8', name: '우유', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f95b/512.webp', customUrl: '/8.png' },
-  { id: '9', name: '음료수', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f964/512.webp', customUrl: '/9.png' },
-  { id: '10', name: '젤리', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f9f8/512.webp', customUrl: '/10.png' },
-  { id: '11', name: '초콜릿', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f36b/512.webp', customUrl: '/11.png' },
-  { id: '12', name: '치즈', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f9c0/512.webp', customUrl: '/12.png' },
+  { id: '1', name: '과자', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f36a/512.webp', customUrl: '/1.png', audioUrl: '/1.mp3' },
+  { id: '2', name: '마이쮸', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f36c/512.webp', customUrl: '/2.png', audioUrl: '/2.mp3' },
+  { id: '3', name: '물', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f4a7/512.webp', customUrl: '/3.png', audioUrl: '/3.mp3' },
+  { id: '4', name: '급식', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f371/512.webp', customUrl: '/4.png', audioUrl: '/4.mp3' },
+  { id: '5', name: '베이글', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f96f/512.webp', customUrl: '/5.png', audioUrl: '/5.mp3' },
+  { id: '6', name: '아이스크림', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f366/512.webp', customUrl: '/6.png', audioUrl: '/6.mp3' },
+  { id: '7', name: '요거트', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f368/512.webp', customUrl: '/7.png', audioUrl: '/7.mp3' },
+  { id: '8', name: '우유', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f95b/512.webp', customUrl: '/8.png', audioUrl: '/8.mp3' },
+  { id: '9', name: '음료수', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f964/512.webp', customUrl: '/9.png', audioUrl: '/9.mp3' },
+  { id: '10', name: '젤리', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f9f8/512.webp', customUrl: '/10.png', audioUrl: '/10.mp3' },
+  { id: '11', name: '초콜릿', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f36b/512.webp', customUrl: '/11.png', audioUrl: '/11.mp3' },
+  { id: '12', name: '치즈', emojiUrl: 'https://fonts.gstatic.com/s/e/notoemoji/latest/1f9c0/512.webp', customUrl: '/12.png', audioUrl: '/12.mp3' },
 ];
 
 function shuffle<T>(array: T[]): T[] {
@@ -102,101 +102,7 @@ const playWrongSound = () => {
   playTone(150, ctx.currentTime + 0.2, 0.4);
 };
 
-const audioCache = new Map<string, string>();
-
-const playRawPCM = async (base64Audio: string) => {
-  const binaryString = atob(base64Audio);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  const dataView = new DataView(bytes.buffer);
-  const numSamples = len / 2;
-  const float32Array = new Float32Array(numSamples);
-  for (let i = 0; i < numSamples; i++) {
-    const int16 = dataView.getInt16(i * 2, true);
-    float32Array[i] = int16 / 32768.0; 
-  }
-  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioContext) return;
-  const ctx = new AudioContext({ sampleRate: 24000 });
-  const audioBuffer = ctx.createBuffer(1, numSamples, 24000);
-  audioBuffer.getChannelData(0).set(float32Array);
-  const source = ctx.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(ctx.destination);
-  source.start();
-};
-
-let isGeminiQuotaExceeded = false;
-
-const preloadAllAudio = async (items: Item[]) => {
-  if (!process.env.GEMINI_API_KEY) return;
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
-  for (const item of items) {
-    if (isGeminiQuotaExceeded) break;
-    if (!audioCache.has(item.name)) {
-      try {
-        const response = await ai.models.generateContent({
-          model: "gemini-3.1-flash-tts-preview",
-          contents: [{ parts: [{ text: item.name }] }],
-          config: {
-            responseModalities: [Modality.AUDIO],
-            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-          },
-        });
-        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-        if (base64Audio) audioCache.set(item.name, base64Audio);
-        
-        // 너무 많은 요청을 한꺼번에 보내서 API 사용량 초과(Quota Error)가 뜨는 것을 막기 위해 1.5초 대기
-        await new Promise(r => setTimeout(r, 1500));
-      } catch (e: any) {
-        console.warn("Preload failed for", item.name, e);
-        if (e.message && e.message.toLowerCase().includes('quota')) {
-          isGeminiQuotaExceeded = true;
-        }
-        break;
-      }
-    }
-  }
-};
-
-const speak = async (text: string) => {
-  try {
-    if (audioCache.has(text)) {
-      playRawPCM(audioCache.get(text)!);
-      return;
-    }
-    
-    if (!isGeminiQuotaExceeded) {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
-      const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-tts-preview",
-        contents: [{ parts: [{ text }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
-          },
-        },
-      });
-
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64Audio) {
-        audioCache.set(text, base64Audio);
-        playRawPCM(base64Audio);
-        return;
-      }
-    }
-  } catch (error: any) {
-    console.warn("Gemini TTS fallback:", error);
-    if (error.message && error.message.toLowerCase().includes('quota')) {
-      isGeminiQuotaExceeded = true;
-    }
-  }
-
-  // Fallback to Browser TTS (only if Gemini completely fails, we try not to hit this now since we preload)
+const speakBrowserTTS = (text: string) => {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
@@ -208,6 +114,19 @@ const speak = async (text: string) => {
     utterance.voice = koVoice;
   }
   window.speechSynthesis.speak(utterance);
+};
+
+// mp3 파일을 재생하는 함수
+const speakItem = (item: Item) => {
+  if (item.audioUrl) {
+    const audio = new Audio(item.audioUrl);
+    audio.play().catch(e => {
+      console.warn("Failed to play audio file, falling back to TTS:", e);
+      speakBrowserTTS(item.name); // 파일 재생 실패 시 원래 로봇 목소리로 대체
+    });
+  } else {
+    speakBrowserTTS(item.name);
+  }
 };
 
 type GameState = 'START' | 'PLAYING' | 'END';
@@ -226,14 +145,12 @@ export default function App() {
         window.speechSynthesis.getVoices();
       };
     }
-    // 게임 시작 시 백그라운드에서 모든 단어의 AI 목소리를 미리 생성해 둡니다.
-    preloadAllAudio(ALL_ITEMS);
   }, []);
 
   useEffect(() => {
     if (gameState === 'PLAYING' && questions[currentIndex]) {
       const timer = setTimeout(() => {
-        speak(questions[currentIndex].target.name);
+        speakItem(questions[currentIndex].target);
       }, 500); // 0.5초 뒤에 바로 읽어주기 (다음 문제 넘어간 직후)
       return () => clearTimeout(timer);
     }
@@ -247,7 +164,7 @@ export default function App() {
         origin: { y: 0.6 }
       });
       setTimeout(() => {
-        speak(`10문제 중 ${score}문제를 맞췄어요!`);
+        speakBrowserTTS(`10문제 중 ${score}문제를 맞췄어요!`);
       }, 500);
     }
   }, [gameState, score]);
@@ -334,7 +251,7 @@ export default function App() {
             {/* Speaker Icon / Voice Prompt */}
             <div className="relative flex flex-col items-center mt-4">
               <button 
-                onClick={() => speak(questions[currentIndex].target.name)}
+                onClick={() => speakItem(questions[currentIndex].target)}
                 className="w-24 h-24 sm:w-32 sm:h-32 bg-[#4D96FF] rounded-full flex items-center justify-center shadow-xl border-8 border-white cursor-pointer hover:scale-105 transition-transform z-10"
                 aria-label="단어 다시 듣기"
               >
